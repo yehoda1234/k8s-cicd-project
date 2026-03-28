@@ -2,15 +2,17 @@ pipeline {
     agent any
     
     environment {
-        // מילת הקסם שמאפשרת לג'נקינס לדבר עם ה-WSL שלך ישירות
+        // לטובת התקשורת לקוברנטיס
         HOST_DOMAIN = "host.docker.internal"
         
-        JENKINS_REGISTRY = "${HOST_DOMAIN}:5000"
+        // 127.0.0.1 עוקף את חסימת ה-HTTPS של דוקר
+        JENKINS_REGISTRY = "127.0.0.1:5000" 
+        
         K8S_REGISTRY = "k3d-mycluster-registry:5000"
         APP_NAME = "devops-app"
         KUBECONFIG_CREDENTIAL_ID = "k8s-config" 
         
-        // הפנייה לפורט של קוברנטיס דרך המחשב המארח
+        // עבד לנו מושלם!
         K8S_API = "https://${HOST_DOMAIN}:39903"
     }
 
@@ -38,7 +40,7 @@ pipeline {
 
         stage('Push Image') {
             steps {
-                echo "Pushing image to local registry via host domain..."
+                echo "Pushing image to local registry..."
                 sh "docker push ${JENKINS_REGISTRY}/${APP_NAME}:${BUILD_NUMBER}"
                 sh "docker push ${JENKINS_REGISTRY}/${APP_NAME}:latest"
             }
