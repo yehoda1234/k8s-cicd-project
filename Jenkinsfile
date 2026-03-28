@@ -2,11 +2,14 @@ pipeline {
     agent any
     
     environment {
-        // שינוי ל-localhost כדי שג'נקינס ימצא את ה-Registry על פורט 5000
-        REGISTRY = "localhost:5000" 
+        // המטרה לדחיפת האימג' מג'נקינס
+        JENKINS_REGISTRY = "localhost:5000"
+        // המטרה למשיכת האימג' מתוך קוברנטיס
+        K8S_REGISTRY = "k3d-mycluster-registry:5000"
         APP_NAME = "devops-app"
-        IMAGE_NAME = "${REGISTRY}/${APP_NAME}"
         KUBECONFIG_CREDENTIAL_ID = "k8s-config" 
+        // הכתובת הישירה של השרת שלך מתוך הקונטיינר
+        K8S_API = "https://172.17.0.1:39903"
     }
 
     stages {
@@ -27,15 +30,15 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 echo "Building Docker Image version: ${BUILD_NUMBER}"
-                sh "docker build -t ${IMAGE_NAME}:${BUILD_NUMBER} -t ${IMAGE_NAME}:latest ."
+                sh "docker build -t ${JENKINS_REGISTRY}/${APP_NAME}:${BUILD_NUMBER} -t ${JENKINS_REGISTRY}/${APP_NAME}:latest ."
             }
         }
 
         stage('Push Image') {
             steps {
-                echo "Pushing image to local registry..."
-                sh "docker push ${IMAGE_NAME}:${BUILD_NUMBER}"
-                sh "docker push ${IMAGE_NAME}:latest"
+                echo "Pushing image to host registry..."
+                sh "docker push ${JENKINS_REGISTRY}/${APP_NAME}:${BUILD_NUMBER}"
+                sh "docker push ${JENKINS_REGISTRY}/${APP_NAME}:latest"
             }
         }
 
@@ -43,11 +46,10 @@ pipeline {
             steps {
                 echo "Deploying to Kubernetes..."
                 withCredentials([file(credentialsId: "${KUBECONFIG_CREDENTIAL_ID}", variable: 'KUBECONFIG')]) {
-                    // הוספת --server כדי שיפנה ישירות לשרת של k3d ברשת הפנימית
-                    sh "/usr/local/bin/kubectl --server=https://k3d-mycluster-server-0:6443 apply -f k8s/deployment.yaml"
-                    sh "/usr/local/bin/kubectl --server=https://k3d-mycluster-server-0:6443 apply -f k8s/service.yaml"
-                    sh "/usr/local/bin/kubectl --server=https://k3d-mycluster-server-0:6443 set image deployment/devops-app-deployment devops-app-container=${IMAGE_NAME}:${BUILD_NUMBER}"
-                    sh "/usr/local/bin/kubectl --server=https://k3d-mycluster-server-0:6443 rollout status deployment/devops-app-deployment"
+                    sh "/usr/local/bin/kubectl --server=${K8S_API} --insecure-skip-tls-verify=true apply -f k8s/deployment.yaml"
+                    sh "/usr/local/bin/kubectl --server=${K8S_API} --insecure-skip-tls-verify=true apply -f k8s/service.yaml"
+                    sh "/usr/local/bin/kubectl --server=${K8S_API} --insecure-skip-tls-verify=true set image deployment/devops-app-deployment devops-app-container=${K8S_REGISTRY}/${APP_NAME}:${BUILD_NUMBER}"
+                    sh "/usr/local/bin/kubectl --server=${K8S_API} --insecure-skip-tls-verify=true rollout status deployment/devops-app-deployment"
                 }
             }
         }
@@ -57,7 +59,7 @@ pipeline {
                 echo "Running Smoke Test on /health endpoint..."
                 withCredentials([file(credentialsId: "${KUBECONFIG_CREDENTIAL_ID}", variable: 'KUBECONFIG')]) {
                     sh '''
-                    /usr/local/bin/kubectl --server=https://k3d-mycluster-server-0:6443 run smoke-test-pod --rm -i --restart=Never --image=curlimages/curl -- curl -s -f http://devops-app-service/health
+                    /usr/local/bin/kubectl --server=${K8S_API} --insecure-skip-tls-verify=true run smoke-test-pod --rm -i --restart=Never --image=curlimages/curl -- curl -s -f http://devops-app-service/health
                     '''
                 }
             }
@@ -68,8 +70,8 @@ pipeline {
         failure {
             echo "🚨 Pipeline failed! Initiating Automatic Rollback... 🚨"
             withCredentials([file(credentialsId: "${KUBECONFIG_CREDENTIAL_ID}", variable: 'KUBECONFIG')]) {
-                sh "/usr/local/bin/kubectl --server=https://k3d-mycluster-server-0:6443 rollout undo deployment/devops-app-deployment"
-                sh "/usr/local/bin/kubectl --server=https://k3d-mycluster-server-0:6443 rollout status deployment/devops-app-deployment"
+                sh "/usr/local/bin/kubectl --server=${K8S_API} --insecure-skip-tls-verify=true rollout undo deployment/devops-app-deployment"
+                sh "/usr/local/bin/kubectl --server=${K8S_API} --insecure-skip-tls-verify=true rollout status deployment/devops-app-deployment"
                 echo "✅ Rollback completed successfully."
             }
         }
