@@ -2,15 +2,16 @@ pipeline {
     agent any
     
     environment {
-        // הכתובת של המחשב המארח מתוך הקונטיינר
-        JENKINS_REGISTRY = "172.17.0.1:5000"
-        // המטרה למשיכת האימג' מתוך קוברנטיס עצמו
+        // מילת הקסם שמאפשרת לג'נקינס לדבר עם ה-WSL שלך ישירות
+        HOST_DOMAIN = "host.docker.internal"
+        
+        JENKINS_REGISTRY = "${HOST_DOMAIN}:5000"
         K8S_REGISTRY = "k3d-mycluster-registry:5000"
         APP_NAME = "devops-app"
-        // זה רק השם של הכספת - מאובטח לחלוטין
         KUBECONFIG_CREDENTIAL_ID = "k8s-config" 
-        // הכתובת הישירה של הקוברנטיס שלך
-        K8S_API = "https://172.17.0.1:39903"
+        
+        // הפנייה לפורט של קוברנטיס דרך המחשב המארח
+        K8S_API = "https://${HOST_DOMAIN}:39903"
     }
 
     stages {
@@ -37,7 +38,7 @@ pipeline {
 
         stage('Push Image') {
             steps {
-                echo "Pushing image to host registry..."
+                echo "Pushing image to local registry via host domain..."
                 sh "docker push ${JENKINS_REGISTRY}/${APP_NAME}:${BUILD_NUMBER}"
                 sh "docker push ${JENKINS_REGISTRY}/${APP_NAME}:latest"
             }
