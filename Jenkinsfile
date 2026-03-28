@@ -2,13 +2,14 @@ pipeline {
     agent any
     
     environment {
-        // המטרה לדחיפת האימג' מג'נקינס
-        JENKINS_REGISTRY = "localhost:5000"
-        // המטרה למשיכת האימג' מתוך קוברנטיס
+        // הכתובת של המחשב המארח מתוך הקונטיינר
+        JENKINS_REGISTRY = "172.17.0.1:5000"
+        // המטרה למשיכת האימג' מתוך קוברנטיס עצמו
         K8S_REGISTRY = "k3d-mycluster-registry:5000"
         APP_NAME = "devops-app"
+        // זה רק השם של הכספת - מאובטח לחלוטין
         KUBECONFIG_CREDENTIAL_ID = "k8s-config" 
-        // הכתובת הישירה של השרת שלך מתוך הקונטיינר
+        // הכתובת הישירה של הקוברנטיס שלך
         K8S_API = "https://172.17.0.1:39903"
     }
 
